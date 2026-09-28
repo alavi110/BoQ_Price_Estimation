@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: boq-price-forecast
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - backend-deployment.yaml
+  - celery-worker-deployment.yaml
+  - celery-beat-deployment.yaml
+  - frontend-deployment.yaml
+  - ingress.yaml
+
+commonLabels:
+  app.kubernetes.io/name: boq-price-forecast
+  app.kubernetes.io/part-of: boq-price-forecast
+  app.kubernetes.io/managed-by: kustomize
+
+images:
+  - name: boq-price-forecast/backend
+    newTag: latest
+  - name: boq-price-forecast/frontend
+    newTag: latest
+
+configMapGenerator:
+  - name: boq-config
+    behavior: merge
+    literals:
+      - VERSION=0.1.0
+      - ENVIRONMENT=production
+
+secretGenerator:
+  - name: boq-secrets
+    behavior: merge
+    literals:
+      - JWT_SECRET_KEY=CHANGE_ME_MIN_32_CHARS
+      - DATABASE_URL=postgresql+asyncpg://boq_user:CHANGE_ME@postgres:5432/boq_price_forecast
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0

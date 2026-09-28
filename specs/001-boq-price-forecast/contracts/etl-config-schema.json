@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Market Data Source Configuration",
+  "type": "object",
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "component_code", "api_endpoint", "auth_method", "schedule_cron"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Human-readable source name",
+            "enum": ["IME Copper", "IME Steel", "Central Bank FX", "Energy Tariff", "Labor Index"]
+          },
+          "component_code": {
+            "type": "string",
+            "description": "References components.code",
+            "enum": ["copper", "steel", "fx_usd", "fx_eur", "energy", "labor"]
+          },
+          "api_endpoint": {
+            "type": "string",
+            "format": "uri",
+            "description": "Base API URL"
+          },
+          "auth_method": {
+            "type": "string",
+            "enum": ["api_key", "bearer_token", "basic_auth", "none", "portal_login"],
+            "description": "Authentication method"
+          },
+          "auth_config": {
+            "type": "object",
+            "description": "Authentication configuration (encrypted at rest)",
+            "properties": {
+              "api_key_header": {"type": "string"},
+              "api_key_env_var": {"type": "string"},
+              "username_env_var": {"type": "string"},
+              "password_env_var": {"type": "string"},
+              "token_url": {"type": "string", "format": "uri"},
+              "client_id_env_var": {"type": "string"},
+              "client_secret_env_var": {"type": "string"}
+            }
+          },
+          "schedule_cron": {
+            "type": "string",
+            "description": "Cron expression in Tehran timezone",
+            "pattern": "^(\\*|([0-9]|1[0-9]|2[0-3])|([0-9]|1[0-9]|2[0-3])/([0-9]|1[0-9]|2[0-3])) (\\*|([0-9]|[1-5][0-9])|([0-9]|[1-5][0-9])/([0-9]|[1-5][0-9])) (\\*|([1-9]|[12][0-9]|3[01])|([1-9]|[12][0-9]|3[01])/([1-9]|[12][0-9]|3[01])) (\\*|([1-9]|1[0-2])|([1-9]|1[0-2])/([1-9]|1[0-2])) (\\*|([0-6])|([0-6])/([0-6]))$"
+          },
+          "timezone": {
+            "type": "string",
+            "default": "Asia/Tehran",
+            "description": "IANA timezone for schedule"
+          },
+          "rate_limit": {
+            "type": "object",
+            "description": "Rate limiting configuration",
+            "properties": {
+              "requests_per_minute": {"type": "integer", "minimum": 1, "default": 60},
+              "requests_per_hour": {"type": "integer", "minimum": 1, "default": 1000},
+              "burst_allowance": {"type": "integer", "minimum": 0, "default": 10}
+            }
+          },
+          "response_mapping": {
+            "type": "object",
+            "description": "JSONPath mapping from API response to standard fields",
+            "required": ["date", "value"],
+            "properties": {
+              "date": {"type": "string", "description": "JSONPath to date field"},
+              "value": {"type": "string", "description": "JSONPath to price/index value"},
+              "volume": {"type": "string", "description": "JSONPath to volume (optional)"}
+            }
+          },
+          "date_format": {
+            "type": "string",
+            "default": "YYYY-MM-DD",
+            "description": "Date format in response (strftime compatible)"
+          },
+          "is_active": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      }
+    }
+  },
+  "required": ["sources"]
+}

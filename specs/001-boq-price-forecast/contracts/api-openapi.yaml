@@ -1,0 +1,1565 @@
+openapi: 3.1.0
+info:
+  title: BoQ Price Forecast API
+  version: 1.0.0
+  description: |
+    REST API for AI-powered BoQ price adjustment and forecasting.
+    Supports Excel upload, weight attribution, price recalculation, forecasting, and defense document generation.
+  contact:
+    name: BoQ Price Forecast Team
+    email: support@example.com
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.boqprice.example.com
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: BoQ Management
+    description: Upload, parse, and preview BoQ Excel files
+  - name: Weight Attribution
+    description: AI-powered weight analysis (LLM + ML fusion)
+  - name: Price Calculation
+    description: Baseline update and commercial adjustments
+  - name: Forecasting
+    description: Time-series price forecasts with scenarios
+  - name: Exports
+    description: Excel and PDF export endpoints
+  - name: Market Data
+    description: Market data freshness and ETL management
+  - name: Administration
+    description: User management, model retraining, system config
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ===== Common =====
+    ErrorResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        code:
+          type: string
+        params:
+          type: object
+      required: [detail]
+
+    PaginatedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+        total:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+
+    JobStatus:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        message:
+          type: string
+        result:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    # ===== BoQ =====
+    BoQUploadResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        preview:
+          $ref: '#/components/schemas/BoQPreview'
+        message:
+          type: string
+
+    BoQPreview:
+      type: object
+      properties:
+        project_id:
+          type: string
+          format: uuid
+        total_items:
+          type: integer
+        total_chapters:
+          type: integer
+        chapters:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChapterPreview'
+        warnings:
+          type: array
+          items:
+            type: string
+
+    ChapterPreview:
+      type: object
+      properties:
+        chapter_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+          pattern: '^\d{3}$'
+        name:
+          type: string
+        item_count:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BoQItemPreview'
+
+    BoQItemPreview:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        description_fa:
+          type: string
+        unit:
+          type: string
+        base_price:
+          type: number
+          format: double
+        quantity:
+          type: number
+          format: double
+        row_number:
+          type: integer
+
+    # ===== Weight Attribution =====
+    WeightAnalysisRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        item_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        force_reanalyze:
+          type: boolean
+          default: false
+      required: [job_id]
+
+    WeightAnalysisResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        message:
+          type: string
+
+    WeightBreakdown:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        description_fa:
+          type: string
+        category:
+          type: string
+        llm_confidence:
+          type: number
+          format: double
+        weights:
+          type: array
+          items:
+            $ref: '#/components/schemas/ComponentWeight'
+        fusion_confidence:
+          type: number
+          format: double
+        updated_at:
+          type: string
+          format: date-time
+
+    ComponentWeight:
+      type: object
+      properties:
+        component_id:
+          type: string
+          format: uuid
+        component_code:
+          type: string
+        component_name_fa:
+          type: string
+        llm_weight:
+          type: number
+          format: double
+        ml_weight:
+          type: number
+          format: double
+        final_weight:
+          type: number
+          format: double
+        source:
+          type: string
+          enum: [llm, ml, fusion, expert]
+        confidence:
+          type: number
+          format: double
+        ml_r2:
+          type: number
+          format: double
+        llm_certainty:
+          type: number
+          format: double
+        overridden_by:
+          type: string
+          format: uuid
+        overridden_at:
+          type: string
+          format: date-time
+        override_reason:
+          type: string
+
+    WeightOverrideRequest:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        component_id:
+          type: string
+          format: uuid
+        new_weight:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        reason:
+          type: string
+          minLength: 10
+      required: [item_id, component_id, new_weight, reason]
+
+    # ===== Price Calculation =====
+    PriceCalculationRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        item_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        custom_multipliers:
+          type: object
+          properties:
+            risk_buffer:
+              type: number
+              format: double
+            payment_terms:
+              type: number
+              format: double
+            profit_margin:
+              type: number
+              format: double
+      required: [job_id]
+
+    PriceCalculationResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        message:
+          type: string
+
+    PriceResult:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        description_fa:
+          type: string
+        unit:
+          type: string
+        base_price:
+          type: number
+          format: double
+        updated_price:
+          type: number
+          format: double
+        final_price:
+          type: number
+          format: double
+        adjustments:
+          type: object
+          properties:
+            risk_buffer:
+              type: number
+              format: double
+            payment_terms:
+              type: number
+              format: double
+            profit_margin:
+              type: number
+              format: double
+        index_snapshot:
+          type: object
+        calculated_at:
+          type: string
+          format: date-time
+
+    PriceComparison:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriceResult'
+        summary:
+          type: object
+          properties:
+            total_base:
+              type: number
+              format: double
+            total_updated:
+              type: number
+              format: double
+            total_final:
+              type: number
+              format: double
+            avg_change_pct:
+              type: number
+              format: double
+
+    # ===== Forecasting =====
+    ForecastRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        item_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        horizons:
+          type: array
+          items:
+            type: integer
+            enum: [1, 3, 6, 12]
+          default: [1, 3, 6, 12]
+        scenarios:
+          type: array
+          items:
+            type: string
+            enum: [optimistic, base, pessimistic]
+          default: [optimistic, base, pessimistic]
+        force_refresh:
+          type: boolean
+          default: false
+      required: [job_id]
+
+    ForecastResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        message:
+          type: string
+
+    ForecastResult:
+      type: object
+      properties:
+        item_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        description_fa:
+          type: string
+        unit:
+          type: string
+        current_price:
+          type: number
+          format: double
+        forecasts:
+          type: array
+          items:
+            $ref: '#/components/schemas/ForecastScenario'
+
+    ForecastScenario:
+      type: object
+      properties:
+        horizon_months:
+          type: integer
+        scenario:
+          type: string
+          enum: [optimistic, base, pessimistic]
+        predicted_price:
+          type: number
+          format: double
+        lower_bound:
+          type: number
+          format: double
+        upper_bound:
+          type: number
+          format: double
+        change_pct:
+          type: number
+          format: double
+        model_type:
+          type: string
+          enum: [prophet, arima, lstm]
+        assumptions:
+          type: object
+
+    ChapterForecastAggregate:
+      type: object
+      properties:
+        chapter_id:
+          type: string
+          format: uuid
+        chapter_code:
+          type: string
+        chapter_name:
+          type: string
+        item_count:
+          type: integer
+        horizons:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChapterHorizonAggregate'
+
+    ChapterHorizonAggregate:
+      type: object
+      properties:
+        horizon_months:
+          type: integer
+        scenarios:
+          type: object
+          properties:
+            optimistic:
+              $ref: '#/components/schemas/AggregateStats'
+            base:
+              $ref: '#/components/schemas/AggregateStats'
+            pessimistic:
+              $ref: '#/components/schemas/AggregateStats'
+
+    AggregateStats:
+      type: object
+      properties:
+        mean:
+          type: number
+          format: double
+        median:
+          type: number
+          format: double
+        total:
+          type: number
+          format: double
+        std_dev:
+          type: number
+          format: double
+        confidence:
+          type: string
+
+    # ===== Exports =====
+    ExportExcelRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        include_weights:
+          type: boolean
+          default: true
+        include_forecasts:
+          type: boolean
+          default: true
+        include_comparison:
+          type: boolean
+          default: true
+      required: [job_id]
+
+    ExportExcelResponse:
+      type: object
+      properties:
+        download_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        filename:
+          type: string
+
+    ExportDefenseDocRequest:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        item_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        chapter_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        format:
+          type: string
+          enum: [pdf, html]
+          default: pdf
+      required: [job_id]
+
+    ExportDefenseDocResponse:
+      type: object
+      properties:
+        download_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        filename:
+          type: string
+
+    # ===== Market Data =====
+    MarketDataFreshness:
+      type: object
+      properties:
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/MarketDataSourceStatus'
+        last_updated:
+          type: string
+          format: date-time
+        staleness_warnings:
+          type: array
+          items:
+            type: string
+
+    MarketDataSourceStatus:
+      type: object
+      properties:
+        source_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        component_code:
+          type: string
+        last_run_at:
+          type: string
+          format: date-time
+        last_success_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [success, failed, stale, unknown]
+        records_count:
+          type: integer
+        error_message:
+          type: string
+
+    ETLTriggerRequest:
+      type: object
+      properties:
+        source_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        force:
+          type: boolean
+          default: false
+      required: [source_ids]
+
+    # ===== Administration =====
+    ModelRetrainRequest:
+      type: object
+      properties:
+        component_codes:
+          type: array
+          items:
+            type: string
+        model_types:
+          type: array
+          items:
+            type: string
+            enum: [prophet, arima, lstm]
+        full_retrain:
+          type: boolean
+          default: false
+
+    ModelRetrainResponse:
+      type: object
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        message:
+          type: string
+
+    UserResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        sso_id:
+          type: string
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+          enum: [estimator, reviewer, manager, admin]
+        department:
+          type: string
+        is_active:
+          type: boolean
+        last_login:
+          type: string
+          format: date-time
+
+    ProjectResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        client_name:
+          type: string
+        tender_date:
+          type: string
+          format: date
+        base_date:
+          type: string
+          format: date
+        risk_buffer:
+          type: number
+          format: double
+        payment_terms:
+          type: number
+          format: double
+        profit_margin:
+          type: number
+          format: double
+        fusion_alpha:
+          type: number
+          format: double
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProjectCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        client_name:
+          type: string
+        tender_date:
+          type: string
+          format: date
+        base_date:
+          type: string
+          format: date
+        risk_buffer:
+          type: number
+          format: double
+          default: 1.04
+        payment_terms:
+          type: number
+          format: double
+          default: 1.08
+        profit_margin:
+          type: number
+          format: double
+          default: 1.10
+        fusion_alpha:
+          type: number
+          format: double
+          default: 0.70
+      required: [name, base_date]
+
+paths:
+  # ===== BoQ Management =====
+  /boq/upload:
+    post:
+      tags: [BoQ Management]
+      summary: Upload and parse BoQ Excel file
+      operationId: uploadBoQ
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                project_id:
+                  type: string
+                  format: uuid
+                create_new_project:
+                  type: boolean
+                  default: false
+                project_name:
+                  type: string
+              required: [file]
+      responses:
+        '200':
+          description: Upload successful, parsing started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoQUploadResponse'
+        '400':
+          description: Invalid file format or parsing error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /boq/{job_id}/preview:
+    get:
+      tags: [BoQ Management]
+      summary: Get parsed BoQ preview
+      operationId: getBoQPreview
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: BoQ preview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BoQPreview'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /boq/{job_id}/items:
+    get:
+      tags: [BoQ Management]
+      summary: List BoQ items with pagination
+      operationId: listBoQItems
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: chapter_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+      responses:
+        '200':
+          description: Paginated list of BoQ items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  # ===== Weight Attribution =====
+  /weights/analyze:
+    post:
+      tags: [Weight Attribution]
+      summary: Trigger AI weight attribution analysis
+      operationId: analyzeWeights
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeightAnalysisRequest'
+      responses:
+        '202':
+          description: Analysis job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeightAnalysisResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /weights/{job_id}:
+    get:
+      tags: [Weight Attribution]
+      summary: Get weight breakdown for all items in job
+      operationId: getWeightBreakdown
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: item_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Weight breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WeightBreakdown'
+                  fusion_alpha:
+                    type: number
+                    format: double
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /weights/override:
+    post:
+      tags: [Weight Attribution]
+      summary: Expert override of fused weight
+      operationId: overrideWeight
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeightOverrideRequest'
+      responses:
+        '200':
+          description: Weight overridden successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComponentWeight'
+        '400':
+          description: Invalid weight or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Insufficient permissions (requires reviewer/manager role)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ===== Price Calculation =====
+  /prices/recalculate:
+    post:
+      tags: [Price Calculation]
+      summary: Trigger price recalculation with market indices
+      operationId: recalculatePrices
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PriceCalculationRequest'
+      responses:
+        '202':
+          description: Calculation job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceCalculationResponse'
+
+  /prices/{job_id}:
+    get:
+      tags: [Price Calculation]
+      summary: Get calculated prices for all items
+      operationId: getCalculatedPrices
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Price calculation results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceComparison'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /prices/{job_id}/comparison:
+    get:
+      tags: [Price Calculation]
+      summary: Get price comparison (base vs updated vs final)
+      operationId: getPriceComparison
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Price comparison data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PriceComparison'
+
+  # ===== Forecasting =====
+  /forecasts/generate:
+    post:
+      tags: [Forecasting]
+      summary: Generate price forecasts
+      operationId: generateForecasts
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForecastRequest'
+      responses:
+        '202':
+          description: Forecast job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForecastResponse'
+
+  /forecasts/{job_id}:
+    get:
+      tags: [Forecasting]
+      summary: Get forecast results
+      operationId: getForecasts
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: horizon
+          in: query
+          schema:
+            type: integer
+            enum: [1, 3, 6, 12]
+        - name: scenario
+          in: query
+          schema:
+            type: string
+            enum: [optimistic, base, pessimistic]
+      responses:
+        '200':
+          description: Forecast results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ForecastResult'
+                  chapter_aggregates:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChapterForecastAggregate'
+
+  /forecasts/{job_id}/chart-data:
+    get:
+      tags: [Forecasting]
+      summary: Get chart-ready forecast data for visualization
+      operationId: getForecastChartData
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: item_ids
+          in: query
+          schema:
+            type: array
+            items:
+              type: string
+              format: uuid
+      responses:
+        '200':
+          description: Chart data for Recharts/Chart.js
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  series:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        data:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              x:
+                                type: string
+                              y:
+                                type: number
+                              y_min:
+                                type: number
+                              y_max:
+                                type: number
+
+  # ===== Exports =====
+  /exports/excel:
+    post:
+      tags: [Exports]
+      summary: Export updated BoQ to Excel
+      operationId: exportExcel
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportExcelRequest'
+      responses:
+        '200':
+          description: Excel file ready for download
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportExcelResponse'
+        '202':
+          description: Export job started (large files)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+
+  /exports/defense-doc:
+    post:
+      tags: [Exports]
+      summary: Generate defense document (سند دفاعیه)
+      operationId: exportDefenseDoc
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportDefenseDocRequest'
+      responses:
+        '200':
+          description: Defense document ready for download
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportDefenseDocResponse'
+        '202':
+          description: Generation job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+
+  # ===== Market Data =====
+  /market-data/freshness:
+    get:
+      tags: [Market Data]
+      summary: Get market data freshness status
+      operationId: getMarketDataFreshness
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Market data freshness
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketDataFreshness'
+
+  /market-data/sources:
+    get:
+      tags: [Market Data]
+      summary: List market data sources
+      operationId: listMarketDataSources
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of market data sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sources:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MarketDataSourceStatus'
+
+  /market-data/etl/trigger:
+    post:
+      tags: [Market Data]
+      summary: Manually trigger ETL for sources
+      operationId: triggerETL
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ETLTriggerRequest'
+      responses:
+        '202':
+          description: ETL triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+
+  /market-data/etl/logs:
+    get:
+      tags: [Market Data]
+      summary: Get ETL run logs
+      operationId: getETLLogs
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: ETL run logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        source_name:
+                          type: string
+                        started_at:
+                          type: string
+                          format: date-time
+                        completed_at:
+                          type: string
+                          format: date-time
+                        status:
+                          type: string
+                        records_processed:
+                          type: integer
+                        error_message:
+                          type: string
+
+  # ===== Administration =====
+  /admin/models/retrain:
+    post:
+      tags: [Administration]
+      summary: Trigger forecast model retraining
+      operationId: retrainModels
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelRetrainRequest'
+      responses:
+        '202':
+          description: Retraining job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelRetrainResponse'
+
+  /admin/models:
+    get:
+      tags: [Administration]
+      summary: List forecast models
+      operationId: listModels
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        component_code:
+                          type: string
+                        model_type:
+                          type: string
+                        version:
+                          type: integer
+                        status:
+                          type: string
+                        mae:
+                          type: number
+                        trained_at:
+                          type: string
+                          format: date-time
+
+  /admin/users:
+    get:
+      tags: [Administration]
+      summary: List users
+      operationId: listUsers
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UserResponse'
+
+  /admin/projects:
+    get:
+      tags: [Administration]
+      summary: List projects
+      operationId: listProjects
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProjectResponse'
+
+    post:
+      tags: [Administration]
+      summary: Create new project
+      operationId: createProject
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+
+  /admin/projects/{project_id}:
+    get:
+      tags: [Administration]
+      summary: Get project details
+      operationId: getProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '404':
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags: [Administration]
+      summary: Update project settings
+      operationId: updateProject
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                risk_buffer:
+                  type: number
+                  format: double
+                payment_terms:
+                  type: number
+                  format: double
+                profit_margin:
+                  type: number
+                  format: double
+                fusion_alpha:
+                  type: number
+                  format: double
+                status:
+                  type: string
+                  enum: [draft, active, archived]
+      responses:
+        '200':
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+
+  # ===== Health =====
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check endpoint
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  version:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: string
+                      redis:
+                        type: string
+                      openrouter:
+                        type: string
+                      market_data:
+                        type: string

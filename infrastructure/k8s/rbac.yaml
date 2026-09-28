@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: boq-backend
+  namespace: boq-price-forecast
+  labels:
+    app.kubernetes.io/name: boq-price-forecast
+    app.kubernetes.io/part-of: boq-price-forecast
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: boq-backend
+  namespace: boq-price-forecast
+  labels:
+    app.kubernetes.io/name: boq-price-forecast
+    app.kubernetes.io/part-of: boq-price-forecast
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: boq-backend
+  namespace: boq-price-forecast
+  labels:
+    app.kubernetes.io/name: boq-price-forecast
+    app.kubernetes.io/part-of: boq-price-forecast
+subjects:
+  - kind: ServiceAccount
+    name: boq-backend
+    namespace: boq-price-forecast
+roleRef:
+  kind: Role
+  name: boq-backend
+  apiGroup: rbac.authorization.k8s.io

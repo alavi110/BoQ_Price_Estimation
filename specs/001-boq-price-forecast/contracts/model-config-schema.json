@@ -1,0 +1,136 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Forecast Model Configuration",
+  "type": "object",
+  "properties": {
+    "models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component_code", "model_type", "hyperparameters"],
+        "properties": {
+          "component_code": {
+            "type": "string",
+            "enum": ["copper", "steel", "cement", "polymer", "energy", "fx_usd", "fx_eur", "labor"],
+            "description": "Component to forecast"
+          },
+          "model_type": {
+            "type": "string",
+            "enum": ["prophet", "arima", "lstm"],
+            "description": "Model algorithm"
+          },
+          "hyperparameters": {
+            "type": "object",
+            "description": "Model-specific hyperparameters",
+            "oneOf": [
+              {
+                "properties": {
+                  "model_type": {"const": "prophet"},
+                  "changepoint_prior_scale": {"type": "number", "minimum": 0.001, "maximum": 0.5, "default": 0.05},
+                  "seasonality_prior_scale": {"type": "number", "minimum": 0.01, "maximum": 10, "default": 10},
+                  "holidays_prior_scale": {"type": "number", "minimum": 0.01, "maximum": 10, "default": 10},
+                  "seasonality_mode": {"type": "string", "enum": ["additive", "multiplicative"], "default": "multiplicative"},
+                  "changepoint_range": {"type": "number", "minimum": 0.5, "maximum": 0.95, "default": 0.8},
+                  "yearly_seasonality": {"type": "boolean", "default": true},
+                  "weekly_seasonality": {"type": "boolean", "default": false},
+                  "daily_seasonality": {"type": "boolean", "default": false},
+                  "custom_holidays": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {"type": "string"},
+                        "ds": {"type": "string", "format": "date"},
+                        "lower_window": {"type": "integer", "default": 0},
+                        "upper_window": {"type": "integer", "default": 0}
+                      },
+                      "required": ["name", "ds"]
+                    }
+                  }
+                },
+                "required": ["model_type"]
+              },
+              {
+                "properties": {
+                  "model_type": {"const": "arima"},
+                  "p": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+                  "d": {"type": "integer", "minimum": 0, "maximum": 2, "default": 1},
+                  "q": {"type": "integer", "minimum": 0, "maximum": 5, "default": 1},
+                  "seasonal_order": {
+                    "type": "array",
+                    "items": {"type": "integer"},
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "default": [1, 1, 1, 12]
+                  },
+                  "trend": {"type": "string", "enum": ["n", "c", "t", "ct"], "default": "c"},
+                  "method": {"type": "string", "enum": ["css-mle", "mle"], "default": "css-mle"}
+                },
+                "required": ["model_type"]
+              },
+              {
+                "properties": {
+                  "model_type": {"const": "lstm"},
+                  "sequence_length": {"type": "integer", "minimum": 12, "maximum": 60, "default": 24},
+                  "hidden_units": {"type": "integer", "minimum": 32, "maximum": 512, "default": 64},
+                  "num_layers": {"type": "integer", "minimum": 1, "maximum": 3, "default": 2},
+                  "dropout": {"type": "number", "minimum": 0, "maximum": 0.5, "default": 0.2},
+                  "learning_rate": {"type": "number", "minimum": 1e-5, "maximum": 1e-2, "default": 1e-3},
+                  "batch_size": {"type": "integer", "minimum": 16, "maximum": 256, "default": 32},
+                  "epochs": {"type": "integer", "minimum": 10, "maximum": 500, "default": 100},
+                  "early_stopping_patience": {"type": "integer", "minimum": 5, "maximum": 50, "default": 15},
+                  "optimizer": {"type": "string", "enum": ["adam", "rmsprop", "sgd"], "default": "adam"}
+                },
+                "required": ["model_type"]
+              }
+            ]
+          },
+          "training_config": {
+            "type": "object",
+            "properties": {
+              "min_training_months": {"type": "integer", "minimum": 12, "default": 24},
+              "max_training_months": {"type": "integer", "minimum": 24, "default": 60},
+              "validation_split": {"type": "number", "minimum": 0.1, "maximum": 0.3, "default": 0.2},
+              "retrain_frequency_weeks": {"type": "integer", "minimum": 1, "maximum": 8, "default": 1},
+              "performance_threshold": {
+                "type": "object",
+                "properties": {
+                  "max_mape": {"type": "number", "default": 20},
+                  "min_r2": {"type": "number", "default": 0.6}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "global_settings": {
+      "type": "object",
+      "properties": {
+        "default_horizons_months": {
+          "type": "array",
+          "items": {"type": "integer", "enum": [1, 3, 6, 12]},
+          "default": [1, 3, 6, 12]
+        },
+        "scenarios": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["optimistic", "base", "pessimistic"]},
+          "default": ["optimistic", "base", "pessimistic"]
+        },
+        "confidence_level": {"type": "number", "default": 0.8},
+        "scenario_sigma_multiplier": {"type": "number", "default": 1.0},
+        "model_selection_metric": {"type": "string", "enum": ["mae", "rmse", "mape", "r2"], "default": "mape"},
+        "ensemble_weights": {
+          "type": "object",
+          "description": "Weights for ensemble if multiple models per component",
+          "properties": {
+            "prophet": {"type": "number", "default": 0.5},
+            "arima": {"type": "number", "default": 0.3},
+            "lstm": {"type": "number", "default": 0.2}
+          }
+        }
+      }
+    }
+  },
+  "required": ["models", "global_settings"]
+}

@@ -1,0 +1,42 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: boq-ingress
+  namespace: boq-price-forecast
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  labels:
+    app.kubernetes.io/name: boq-price-forecast
+    app.kubernetes.io/part-of: boq-price-forecast
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - api.bidprice-estimator.local
+        - app.bidprice-estimator.local
+      secretName: boq-tls
+  rules:
+    - host: api.bidprice-estimator.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boq-backend
+                port:
+                  number: 8000
+    - host: app.bidprice-estimator.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: boq-frontend
+                port:
+                  number: 3000

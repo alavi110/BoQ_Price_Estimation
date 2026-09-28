@@ -1,0 +1,167 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    /*
+     * The Persian typeface.
+     *
+     * There is deliberately no `@font-face` for it. The rules that used to be here
+     * pointed at `/fonts/Vazirmatn-{Regular,Medium,Bold}.woff2` in `public/`, and
+     * that directory is empty - so every page load issued three 404s and then
+     * rendered in the fallback anyway, with `font-display: swap` hiding the
+     * failure behind a flash of system font. A rule that cannot resolve is worse
+     * than no rule: it looks like the font is configured.
+     *
+     * `Vazirmatn` is named first so an operator who drops the real woff2 files
+     * into `public/fonts/` and re-adds the `@font-face` rules gets them with no
+     * change here. The fallbacks are the faces that ship Persian coverage on the
+     * platforms this runs on, ordered so the digit shapes stay consistent - a
+     * table of prices rendered in two different Persian styles is harder to read
+     * than one rendered consistently in a slightly plainer face.
+     */
+    --font-vazirmatn: 'Vazirmatn', 'IRANSans', 'Segoe UI', 'Tahoma', system-ui,
+      sans-serif;
+    --font-geist-mono: 'Geist Mono', monospace;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /*
+     * The Persian face is set on `body` rather than left to the `.persian-text`
+     * utility, because nothing in the dashboard applies that class - every screen
+     * is Persian by definition, so making the font opt-in meant it was never
+     * applied and the whole app rendered in the browser's default face.
+     */
+    font-family: var(--font-vazirmatn);
+    /*
+     * `rlig` enables the Persian-specific letterforms for ک and ی; `calt` turns on
+     * contextual alternates. A Persian table rendered without them shows the
+     * Arabic forms of ک and ی, which is legible but is not what an Iranian
+     * reader expects to see on a tender document.
+     */
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* RTL Support */
+  [dir="rtl"] {
+    direction: rtl;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Focus styles */
+*:focus-visible {
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+}
+
+/* Selection */
+::selection {
+  @apply bg-primary/20 text-primary-foreground;
+}
+
+/* Persian text utilities */
+.persian-text {
+  font-family: var(--font-vazirmatn);
+  direction: rtl;
+  text-align: right;
+}
+.ltr-text {
+  direction: ltr;
+  text-align: left;
+}
+
+/* Table styles for Persian content */
+.table-persian {
+  @apply w-full border-collapse;
+}
+
+.table-persian th,
+.table-persian td {
+  @apply border border-border px-4 py-3 text-right;
+}
+
+.table-persian th {
+  @apply bg-muted font-medium;
+}
+
+/* Chart container */
+.chart-container {
+  @apply w-full h-[300px] md:h-[400px];
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply animate-pulse bg-muted rounded;
+}
+
+/* Toast customizations */
+.toast-persian {
+  direction: rtl;
+  text-align: right;
+}

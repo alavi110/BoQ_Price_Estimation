@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: boq-celery-beat
+  namespace: boq-price-forecast
+  labels:
+    app.kubernetes.io/name: boq-price-forecast
+    app.kubernetes.io/component: celery-beat
+    app.kubernetes.io/part-of: boq-price-forecast
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: boq-price-forecast
+      app.kubernetes.io/component: celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: boq-price-forecast
+        app.kubernetes.io/component: celery-beat
+    spec:
+      serviceAccountName: boq-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: beat
+          image: boq-price-forecast/backend:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - celery
+            - -A
+            - src.core.celery_app
+            - beat
+            - --loglevel=info
+            - --scheduler
+            - celery.beat.PersistentScheduler
+          envFrom:
+            - configMapRef:
+                name: boq-config
+            - secretRef:
+                name: boq-secrets
+          env:
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: boq-secrets
+                  key: OPENROUTER_API_KEY
+                  optional: true
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: beat-data
+              mountPath: /app/celerybeat-schedule
+      volumes:
+        - name: beat-data
+          persistentVolumeClaim:
+            claimName: boq-beat-data-pvc

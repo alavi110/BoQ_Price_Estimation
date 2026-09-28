@@ -1,0 +1,527 @@
+{#-
+  Defense document (سند دفاعیه) - Persian RTL, A4, for official submission.
+
+  The document is a *defence* artefact: every number printed here has to be
+  traceable back to a weight, an index, or a commercial multiplier. The
+  template therefore never hides an intermediate value - each item gets its
+  full weight table, index sources, the formula, and the adjustment ladder.
+-#}
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>سند دفاعیه - {{ content.cover.project_name }}</title>
+  <style>
+    @font-face {
+      font-family: "Vazirmatn";
+      src: url("{{ font_url }}") format("woff2");
+      font-display: swap;
+    }
+
+    @page {
+      size: A4;
+      margin: 20mm 15mm 22mm 15mm;
+
+      @top-center {
+        content: "سند دفاعیه - {{ content.cover.project_name }}";
+        font-family: "Vazirmatn", "Tahoma", sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+      @bottom-right {
+        content: "صفحه " counter(page) " از " counter(pages);
+        font-family: "Vazirmatn", "Tahoma", sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+      @bottom-left {
+        content: "{{ content.cover.document_date_iso }}";
+        font-family: "Vazirmatn", "Tahoma", sans-serif;
+        font-size: 9pt;
+        color: #555;
+      }
+    }
+
+    :root {
+      --ink: #1a1a1a;
+      --muted: #6b6b6b;
+      --rule: #d4d4d4;
+      --accent: #1f4e79;
+      --warn-bg: #fff6e5;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: "Vazirmatn", "Tahoma", "Segoe UI", sans-serif;
+      font-size: 10pt;
+      line-height: 1.8;
+      color: var(--ink);
+      direction: rtl;
+      text-align: right;
+    }
+
+    h1, h2, h3 { color: var(--accent); margin: 0 0 6pt 0; }
+    h1 { font-size: 17pt; }
+    h2 {
+      font-size: 13pt;
+      border-bottom: 1.5pt solid var(--accent);
+      padding-bottom: 3pt;
+      margin-top: 18pt;
+      break-after: avoid;
+    }
+    h3 { font-size: 11pt; margin-top: 12pt; break-after: avoid; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 6pt 0 10pt 0;
+      font-size: 9pt;
+    }
+    th, td {
+      border: 0.5pt solid var(--rule);
+      padding: 4pt 6pt;
+      vertical-align: top;
+    }
+    th { background: #eef3f8; font-weight: 600; text-align: right; }
+    td.num, th.num { text-align: left; direction: ltr; unicode-bidi: plaintext; }
+    tfoot td { font-weight: 600; background: #f7f7f7; }
+
+    /* Cover ------------------------------------------------------------ */
+    .cover {
+      page-break-after: always;
+      text-align: center;
+      padding-top: 40mm;
+    }
+    .cover h1 { font-size: 22pt; margin-bottom: 4pt; }
+    .cover .subtitle { font-size: 12pt; color: var(--muted); margin-bottom: 24pt; }
+    .cover dl {
+      display: grid;
+      grid-template-columns: 45% 55%;
+      gap: 6pt 10pt;
+      text-align: right;
+      margin: 0 auto 20pt auto;
+      max-width: 150mm;
+      font-size: 10.5pt;
+    }
+    .cover dt { color: var(--muted); }
+    .cover dd { margin: 0; font-weight: 600; }
+    .cover .totals {
+      max-width: 150mm;
+      margin: 16pt auto 0 auto;
+      text-align: right;
+    }
+
+    .meta { color: var(--muted); font-size: 9pt; }
+
+    /* Items ------------------------------------------------------------ */
+    .item { break-inside: avoid-page; margin-bottom: 14pt; }
+    .item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      background: #eef3f8;
+      padding: 5pt 8pt;
+      border-radius: 3pt;
+      break-after: avoid;
+    }
+    .item-header .code { font-weight: 700; direction: ltr; unicode-bidi: plaintext; }
+    .item-header .unit { color: var(--muted); font-size: 9pt; }
+
+    .formula {
+      background: #f6f8fa;
+      border-right: 3pt solid var(--accent);
+      padding: 5pt 9pt;
+      margin: 6pt 0;
+      font-size: 9.5pt;
+    }
+    .formula .en { color: var(--muted); direction: ltr; text-align: left; display: block; }
+
+    .price-line {
+      display: flex;
+      justify-content: space-between;
+      border-top: 1pt solid var(--rule);
+      padding: 4pt 0;
+      font-weight: 600;
+    }
+
+    .override { background: var(--warn-bg); }
+    .badge {
+      display: inline-block;
+      font-size: 8pt;
+      padding: 1pt 5pt;
+      border-radius: 8pt;
+      background: var(--accent);
+      color: #fff;
+    }
+    .reason { color: #7a4b00; font-size: 8.5pt; }
+
+    .empty { color: var(--muted); font-style: italic; }
+    .note { font-size: 8.5pt; color: var(--muted); margin-top: 4pt; }
+  </style>
+</head>
+<body>
+
+{# ---------------------------------------------------------------- cover #}
+<section class="cover">
+  <h1>سند دفاعیه قیمت</h1>
+  <div class="subtitle">{{ content.cover.project_name }}</div>
+
+  <dl>
+    <dt>نام پروژه</dt><dd>{{ content.cover.project_name }}</dd>
+    <dt>کد پروژه</dt><dd>{{ content.cover.project_code or "-" }}</dd>
+    <dt>شماره مناقصه</dt><dd>{{ content.cover.tender_reference or "-" }}</dd>
+    <dt>پیمانکار</dt><dd>{{ content.cover.contractor_name or "-" }}</dd>
+    <dt>شماره سند</dt><dd>{{ content.cover.document_number or "-" }}</dd>
+    <dt>تارخ سند</dt><dd>{{ content.cover.document_date_fa }}</dd>
+    <dt>تارخ تهیه</dt><dd>{{ content.cover.generated_at_fa }}</dd>
+    <dt>تعداد ردیف</dt><dd>{{ fa_number(content.cover.item_count) }}</dd>
+    <dt>تعداد فصل</dt><dd>{{ fa_number(content.cover.chapter_count) }}</dd>
+  </dl>
+
+  <table class="totals">
+    <thead>
+      <tr>
+        <th>شرح</th>
+        <th class="num">مبلغ (ریال)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>جمع قیمت پایه</td>
+        <td class="num">{{ fa_money(content.cover.base_total) }}</td>
+      </tr>
+      <tr>
+        <td>جمع قیمت پایانی</td>
+        <td class="num">{{ fa_money(content.cover.final_total) }}</td>
+      </tr>
+      <tr>
+        <td>درصد تغییر</td>
+        <td class="num">{{ fa_percent(content.cover.change_pct) }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {% if report is defined and report is not none and report.warnings %}
+  <div class="note">
+    هشدارهای اعتبارسنجی:
+    {% for warning in report.warnings %}{{ warning.label_fa }}{% if not loop.last %}، {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------------- chapter summary #}
+{% if content.chapters %}
+<h2>خلاصه فصل‌ها</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="num">کد فصل</th>
+      <th>عنوان فصل</th>
+      <th class="num">تعداد ردیف</th>
+      <th class="num">قیمت پایه</th>
+      <th class="num">قیمت پایانی</th>
+      <th class="num">تغییر</th>
+      <th class="num">اصلاحات</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for chapter in content.chapters %}
+    <tr>
+      <td class="num">{{ chapter.chapter_code }}</td>
+      <td>{{ chapter.name_fa }}</td>
+      <td class="num">{{ fa_number(chapter.item_count) }}</td>
+      <td class="num">{{ fa_money(chapter.base_total) }}</td>
+      <td class="num">{{ fa_money(chapter.final_total) }}</td>
+      <td class="num">{{ fa_percent(chapter.change_pct) }}</td>
+      <td class="num">{{ fa_number(chapter.override_count) }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr>
+      <td colspan="3">جمع کل</td>
+      <td class="num">{{ fa_money(content.base_total()) }}</td>
+      <td class="num">{{ fa_money(content.final_total()) }}</td>
+      <td class="num">{{ fa_percent(cover_change_pct) }}</td>
+      <td class="num">{{ fa_number(content.override_count) }}</td>
+    </tr>
+  </tfoot>
+</table>
+{% endif %}
+
+{# ------------------------------------------------------------- per item #}
+<h2>تحلیل ردیف به ردیف</h2>
+{% if not content.items %}
+<p class="empty">هیچ ردیفی برای نمایش وجود ندارد.</p>
+{% endif %}
+
+{% for item in content.items %}
+<article class="item">
+  <div class="item-header">
+    <span>
+      <span class="code">{{ item.code }}</span>
+      &mdash; {{ item.description_fa }}
+      {% if item.has_overrides %}<span class="badge">دارای اصلاح کارشناس</span>{% endif %}
+    </span>
+    <span class="unit">{{ item.unit }} | فصل {{ item.chapter_code }}</span>
+  </div>
+
+  {# ---- weight table: AI suggestion next to expert-final ---- #}
+  <h3>جدول وزن مؤلفه‌ها</h3>
+  {% if item.weights %}
+  <table>
+    <thead>
+      <tr>
+        <th>مؤلفه</th>
+        <th class="num">وزن پیشنهادی سیستم</th>
+        <th class="num">وزن نهایی</th>
+        <th class="num">تغییر</th>
+        <th>منبع</th>
+        <th class="num">شاخص پایه</th>
+        <th class="num">شاخص فعلی</th>
+        <th class="num">نسبت</th>
+        <th class="num">سهم در قیمت</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for weight in item.weights %}
+      <tr class="{{ 'override' if weight.overridden else '' }}">
+        <td>
+          {{ weight.component_name_fa }}
+          {% if weight.override_reason %}
+          <div class="reason">دلیل اصلاح: {{ weight.override_reason }}</div>
+          {% endif %}
+        </td>
+        <td class="num">{{ fa_percent_value(weight.ai_weight) }}</td>
+        <td class="num">{{ fa_percent_value(weight.final_weight) }}</td>
+        <td class="num">
+          {%- if weight.delta is none -%}-
+          {%- elif weight.delta > 0 -%}+{{ fa_percent_value(weight.delta) }}
+          {%- else -%}{{ fa_percent_value(weight.delta) }}{% endif -%}
+        </td>
+        <td>{{ weight.source_label }}</td>
+        <td class="num">{{ fa_number(weight.index_base, 2) if weight.index_base is not none else "-" }}</td>
+        <td class="num">{{ fa_number(weight.index_current, 2) if weight.index_current is not none else "-" }}</td>
+        <td class="num">{{ fa_number(weight.index_ratio, 4) if weight.index_ratio is not none else "-" }}</td>
+        <td class="num">{{ fa_percent_value(weight.contribution) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>مجموع</td>
+        <td class="num">-</td>
+        <td class="num">{{ fa_percent_value(item.weight_total) }}</td>
+        <td class="num">-</td>
+        <td colspan="5"></td>
+      </tr>
+    </tfoot>
+  </table>
+  {% if item.weights | selectattr("override_reason") | list | length %}
+  <div class="note">
+    ستون «وزن پیشنهادی سیستم» نتیجه تلفیق مدل زبانی و مدل یادگیری ماشین
+    (آلفا = {{ fusion_alpha }}) پیش از اعمال اصلاح کارشناس است.
+  </div>
+  {% endif %}
+  {% else %}
+  <p class="empty">برای این ردیف وزنی ثبت نشده است.</p>
+  {% endif %}
+
+  {# ---- index sources ---- #}
+  <h3>منابع شاخص</h3>
+  {% set indexed = item.weights | selectattr("index_name") | list %}
+  {% if indexed %}
+  <table>
+    <thead>
+      <tr>
+        <th>مؤلفه</th>
+        <th>نام شاخص</th>
+        <th>دوره پایه</th>
+        <th>دوره جاری</th>
+        <th>منبع داده</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for weight in indexed %}
+      <tr>
+        <td>{{ weight.component_name_fa }}</td>
+        <td>{{ weight.index_name }}</td>
+        <td>{{ fa_date(weight.index_base_date) }}</td>
+        <td>{{ fa_date(weight.index_current_date) }}</td>
+        <td class="num">{{ weight.index_source_url or "-" }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">شاخصی برای این ردیف تعریف نشده است.</p>
+  {% endif %}
+
+  {# ---- formula ---- #}
+  <h3>فرمول محاسبه</h3>
+  <div class="formula">
+    {{ item.formula_fa }}
+    <span class="en">{{ item.formula_en }}</span>
+  </div>
+
+  {# ---- adjustment ladder ---- #}
+  <h3>ضرایب تجاری</h3>
+  {% if item.adjustments %}
+  <table>
+    <thead>
+      <tr>
+        <th>ردیف</th>
+        <th>عنوان</th>
+        <th class="num">ضریب</th>
+        <th class="num">ورودی</th>
+        <th class="num">خروجی</th>
+        <th>توضیح</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for adjustment in item.adjustments %}
+      <tr class="{{ 'override' if adjustment.overridden else '' }}">
+        <td class="num">{{ fa_number(loop.index) }}</td>
+        <td>{{ adjustment.label_fa }}</td>
+        <td class="num">{{ fa_number(adjustment.multiplier, 2) }}</td>
+        <td class="num">{{ fa_money(adjustment.input_price) }}</td>
+        <td class="num">{{ fa_money(adjustment.output_price) }}</td>
+        <td>
+          {% if adjustment.override_reason %}
+          <span class="reason">{{ adjustment.override_reason }}</span>
+          {% else %}-
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">ضریب تجاری برای این ردیف اعمال نشده است.</p>
+  {% endif %}
+
+  {# ---- final price ---- #}
+  <h3>قیمت نهایی</h3>
+  <table>
+    <tbody>
+      <tr>
+        <td>قیمت پایه</td>
+        <td class="num">{{ fa_money(item.base_price) }}</td>
+      </tr>
+      <tr>
+        <td>قیمت پس از اعمال شاخص</td>
+        <td class="num">{{ fa_money(item.index_adjusted_price) }}</td>
+      </tr>
+      <tr class="price-line">
+        <td>قیمت نهایی واحد</td>
+        <td class="num">{{ fa_money(item.final_price) }}</td>
+      </tr>
+      <tr>
+        <td>مقدار</td>
+        <td class="num">{{ fa_number(item.quantity, 3) }} {{ item.unit }}</td>
+      </tr>
+      <tr>
+        <td>مبلغ کل</td>
+        <td class="num">{{ fa_money(item.total_price) }}</td>
+      </tr>
+      <tr>
+        <td>درصد تغییر نسبت به پایه</td>
+        <td class="num">{{ fa_percent(item.change_pct()) }}</td>
+      </tr>
+      {% if item.confidence is not none %}
+      <tr>
+        <td>درجه اطمینان وزن‌دهی</td>
+        <td class="num">{{ fa_percent(item.confidence) }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</article>
+{% endfor %}
+
+{# ------------------------------------------------------ forecast appendix #}
+{% if content.has_forecasts %}
+<h2>پیوست: سناریوهای پیش‌بینی قیمت</h2>
+<table>
+  <thead>
+    <tr>
+      <th class="num">کد ردیف</th>
+      <th>شرح</th>
+      <th class="num">افق (ماه)</th>
+      <th>سناریو</th>
+      <th class="num">قیمت پیش‌بینی</th>
+      <th class="num">کران پایین</th>
+      <th class="num">کران بالا</th>
+      <th class="num">تغییر</th>
+      <th>مدل</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for item in content.items %}
+      {% for forecast in item.forecasts %}
+      <tr>
+        <td class="num">{{ item.code }}</td>
+        <td>{{ item.description_fa }}</td>
+        <td class="num">{{ fa_number(forecast.horizon_months) }}</td>
+        <td>{{ scenario_labels.get(forecast.scenario, forecast.scenario) }}</td>
+        <td class="num">{{ fa_money(forecast.predicted_price) }}</td>
+        <td class="num">{{ fa_money(forecast.lower_bound) if forecast.lower_bound is not none else "-" }}</td>
+        <td class="num">{{ fa_money(forecast.upper_bound) if forecast.upper_bound is not none else "-" }}</td>
+        <td class="num">{{ fa_percent(forecast.change_pct) if forecast.change_pct is not none else "-" }}</td>
+        <td class="num">{{ forecast.model_type }}</td>
+      </tr>
+      {% endfor %}
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+{# --------------------------------------------------------- methodology #}
+<h2>روش‌شناسی</h2>
+<ol>
+  <li>
+    وزن هر مؤلفه از تلفیق خروجی مدل زبانی و مدل رگرسیون یادگیری ماشین به دست
+    آمده است (ضریب آلفا = {{ fusion_alpha }}).
+  </li>
+  <li>
+    قیمت جدید از حاصل‌ضرب قیمت پایه در مجموع
+    (وزن × نسبت شاخص جاری به شاخص پایه) محاسبه می‌شود.
+  </li>
+  <li>
+    ضرایب تجاری به ترتیب حاشیه ریسک، شرایط پرداخت و حاشیه سود اعمال می‌شوند.
+  </li>
+  <li>
+    هر اصلاح کارشناس با ذکر دلیل در جدول وزن ثبت شده و در این سند نمایش داده
+    می‌شود.
+  </li>
+</ol>
+
+{% if report is defined and report is not none %}
+<h2>گزارش اعتبارسنجی</h2>
+<table>
+  <thead>
+    <tr>
+      <th>کد</th>
+      <th>عنوان</th>
+      <th>نتیجه</th>
+      <th>شدت</th>
+      <th>توضیح</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for check in report.checks %}
+    <tr class="{{ 'override' if not check.passed else '' }}">
+      <td class="num">{{ check.code }}</td>
+      <td>{{ check.label_fa }}</td>
+      <td>{{ "قبول" if check.passed else "رد" }}</td>
+      <td>{{ check.severity.value }}</td>
+      <td>{{ check.detail or "-" }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+</body>
+</html>
